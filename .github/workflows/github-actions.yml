@@ -1,21 +1,54 @@
-name: GitHub Action
-run-name: ${{ github.actor }} is building the repository 🚀
-on: [push, pull_request]
+name: Dreamcast FT4 packet tests
+
+on:
+  push:
+    paths:
+      - '*.c'
+      - '*.h'
+      - 'Makefile'
+      - 'README.txt'
+      - '.github/workflows/github-actions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
-  Explore-GitHub-Actions:
-    runs-on: ubuntu-latest
-    container: 
+  packet-checks:
+    name: Check request sequences
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check packet construction and cleanup
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -pedantic ft4_tests.c test_packets.c -o /tmp/test-ft4-packets
+          /tmp/test-ft4-packets
+
+  dreamcast:
+    name: Build ELF and bootable CDI
+    needs: packet-checks
+    runs-on: ubuntu-24.04
+    container:
+      # Same versioned image as maishuji/dreamcast-template's successful CI.
       image: maishuji/dc-kos-image:15.2.0-08feb26-kp08feb26
       options: --user root
-    steps:
-      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
-      - run:  |
-          echo " 🫣 Building..."
-          source /opt/toolchains/dc/kos/environ.sh
-          cmake -S . -B build-dreamcast -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=toolchains/dreamcast.cmake
-          cmake --build build-dreamcast --verbose
-          echo " 👏 Build completed"
+    defaults:
+      run:
         shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compile and package
+        run: |
+          source /opt/toolchains/dc/kos/environ.sh
+          make -j2
+          mkdir -p artifact
+          /usr/local/bin/mkdcdisc -e ft4-test.elf -o artifact/ft4-test.cdi -n "FT4 packet tests"
+          cp ft4-test.elf ft4-test.bin README.txt artifact/
+          git rev-parse HEAD > artifact/BUILD_COMMIT.txt
+          sh-elf-gcc --version > artifact/TOOLCHAIN.txt
+          sha256sum artifact/ft4-test.* > artifact/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dreamcast-ft4-test
+          path: artifact/
+          if-no-files-found: error
