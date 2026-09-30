@@ -44,7 +44,7 @@ jobs:
           mkdir -p artifact
           /usr/local/bin/mkdcdisc -e ft4-test.elf -o artifact/ft4-test.cdi -n "FT4 packet tests"
           cp ft4-test.elf ft4-test.bin README.txt artifact/
-          git rev-parse HEAD > artifact/BUILD_COMMIT.txt
+          printf '%s\n' "$GITHUB_SHA" > artifact/BUILD_COMMIT.txt
           sh-elf-gcc --version > artifact/TOOLCHAIN.txt
           sha256sum artifact/ft4-test.* > artifact/SHA256SUMS.txt
       - uses: actions/upload-artifact@v7
