@@ -91,6 +91,8 @@ static void text(unsigned row, const char *string, uint32_t color) {
 }
 
 static void menu(ft4_test_t selected, bool low_rate, const char *status) {
+    const unsigned rows = 12;
+    unsigned first = (unsigned)selected / rows * rows;
     char line[64];
 
     vid_clear(0, 0, 0);
@@ -98,11 +100,14 @@ static void menu(ft4_test_t selected, bool low_rate, const char *status) {
     text(1, "Up/Down test  Left/Right rate", 0xbdf7);
     text(2, "A run  B cancel  Start exit", 0xbdf7);
     text(3, low_rate ? "Rate: 8 kHz" : "Rate: 11 kHz", 0x07ff);
+    snprintf(line, sizeof(line), "Page %u / %u", first / rows + 1,
+             (FT4_TEST_COUNT + rows - 1) / rows);
+    text(4, line, 0xbdf7);
 
-    for(unsigned i = 0; i < FT4_TEST_COUNT; ++i) {
-        snprintf(line, sizeof(line), "%c %s", i == (unsigned)selected ? '>' : ' ',
-                 ft4_test_names[i]);
-        text(i + 5, line, i == (unsigned)selected ? 0xffe0 : 0xffff);
+    for(unsigned i = first; i < FT4_TEST_COUNT && i < first + rows; ++i) {
+        snprintf(line, sizeof(line), "%c %02u %s",
+                 i == (unsigned)selected ? '>' : ' ', i + 1, ft4_test_names[i]);
+        text(i - first + 5, line, i == (unsigned)selected ? 0xffe0 : 0xffff);
     }
     text(17, status, 0xbdf7);
 }
@@ -114,8 +119,8 @@ int main(void) {
         .cancelled = cancelled,
         .context = &mic_transport
     };
-    ft4_test_t selected = FT4_TEST_IDENTITY;
-    bool low_rate = true;
+    ft4_test_t selected = FT4_TEST_FORMAT_TRANSITIONS;
+    bool low_rate = false;
     uint32_t previous = 0;
     const char *status = "Ready. Connect controller + mic.";
 

@@ -29,7 +29,9 @@ const char *const ft4_test_names[FT4_TEST_COUNT] = {
     "Test_Mode while sampling",
     "Planet Ring command probe",
     "Alien Front command probe",
-    "Sample-buffer overflow"
+    "Sample-buffer overflow",
+    "PCM / mu-law transitions",
+    "EXTU while sampling"
 };
 
 static bool control(const ft4_transport_t *transport, uint8_t subcommand,
@@ -44,6 +46,76 @@ static bool control(const ft4_transport_t *transport, uint8_t subcommand,
 static bool reset(const ft4_transport_t *transport) {
     return transport->send(transport->context, COMMAND_RESET, NULL, 0) &&
            transport->send(transport->context, COMMAND_INFO, NULL, 0);
+}
+
+static bool read_samples(const ft4_transport_t *transport, unsigned count) {
+    for(unsigned i = 0; i < count; ++i) {
+        if(transport->cancelled(transport->context) ||
+           !control(transport, GET_SAMPLES, DEFAULT_GAIN))
+            return false;
+    }
+    return true;
+}
+
+static bool stop_sampling(const ft4_transport_t *transport) {
+    /* KOS's SIP driver also uses DT1=00 to stop, regardless of current format.
+       This restores high-rate PCM while stopped and avoids assuming that an
+       attempted active format change was accepted. */
+    if(!control(transport, BASIC_CONTROL, 0))
+        return false;
+    return control(transport, GET_SAMPLES, DEFAULT_GAIN);
+}
+
+static bool transitions(ft4_test_t test, uint8_t rate,
+                        const ft4_transport_t *transport) {
+    bool started = false;
+    bool success = false;
+
+    if(!control(transport, EXTU_BIT, 0))
+        return false;
+
+    if(test == FT4_TEST_FORMAT_TRANSITIONS) {
+        /* Independently start in each format: rejection of PCM -> mu-law
+           must not prevent testing mu-law -> PCM from actual mu-law input.
+           No stop/reset occurs between the three phases of either session. */
+        for(unsigned session = 0; session < 2; ++session) {
+            for(unsigned phase = 0; phase < 3; ++phase) {
+                uint8_t format = ((session + phase) & 1u) ? ULAW : 0;
+
+                if(transport->cancelled(transport->context))
+                    goto cleanup;
+                started = true;
+                if(!control(transport, BASIC_CONTROL,
+                            rate | format | START_SAMPLING) ||
+                   !read_samples(transport, 20))
+                    goto cleanup;
+            }
+            if(!stop_sampling(transport))
+                return false;
+            started = false;
+        }
+    }
+    else {
+        const uint8_t expansions[] = {0, 1, 2, 0};
+
+        started = true;
+        if(!control(transport, BASIC_CONTROL, rate | START_SAMPLING))
+            goto cleanup;
+        for(unsigned phase = 0; phase < 4; ++phase) {
+            if(transport->cancelled(transport->context))
+                goto cleanup;
+            if(phase && !control(transport, EXTU_BIT, expansions[phase]))
+                goto cleanup;
+            if(!read_samples(transport, 30))
+                goto cleanup;
+        }
+    }
+    success = true;
+
+cleanup:
+    if(started && !stop_sampling(transport))
+        return false;
+    return success;
 }
 
 bool ft4_test_run(ft4_test_t test, bool low_rate,
@@ -74,6 +146,9 @@ bool ft4_test_run(ft4_test_t test, bool low_rate,
 
     if(!control(transport, AMP_CONTROL, gain))
         return false;
+
+    if(test == FT4_TEST_FORMAT_TRANSITIONS || test == FT4_TEST_EXTU_TRANSITIONS)
+        return transitions(test, mode, transport);
 
     if(test >= FT4_TEST_PCM_ZERO && test <= FT4_TEST_PCM_TEN) {
         uint8_t expansion = (uint8_t)(test - FT4_TEST_PCM_ZERO);
