@@ -25,7 +25,8 @@ Test order
 ----------
 01 Cold DeviceInfo, AllInfo, every reported source's MediaInfo, condition, AST.
 02 Reset/defaults, direct start without media query, reset during vibration,
-   enumeration/media query then start again.
+   enumeration/media query then start again. Both phases are labelled on
+   screen and vibrate for 1.5s apiece.
 03 Positive levels 0-7, continuous 10Hz, 750ms each.
 04 Negative levels 0-7, continuous 10Hz, 750ms each.
 05 Continuous frequency sweep: 4,10,20,30,0.5,128Hz, 1s each.
@@ -55,9 +56,13 @@ Test order
 20 Get_Condition, host Transmit_Again FC, unsupported 0D and unknown 7F.
 21 Start, Kill, Device_Request probe. NO cleanup writes after Kill.
 
-Except cold identity, each test begins with Reset and a 100ms settling wait.
+Except cold identity, each test begins with Reset, a 100ms settling wait and
+Device_Request. FT8 section 6.1.8 / MAPLE82E section 3.5 require this request
+after reset; the first Tremor capture confirms silence when it is omitted.
 Every normal completion/cancel sends stop then restores source-1 AST=13h.
-There is no mandatory media-query choreography. Timing uses milliseconds,
+Direct startup means no preceding media query, not skipping Device_Request.
+Test 2 reads condition/AST immediately after each reset and re-enumeration.
+Timing uses milliseconds,
 not a fixed video-frame count. Physical intervals include intervening Maple
 transfer latency, so use LA timestamps as the measured time reference.
 

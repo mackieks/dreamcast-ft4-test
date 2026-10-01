@@ -95,6 +95,16 @@ static void check_sequences(void) {
         assert(result.requests == capture.count);
         assert(!result.cancelled && !result.errors && !result.missing);
         assert(capture.packets[0].command == (test == FT8_TEST_IDENTITY ? FT8_DEVINFO : FT8_RESET));
+        if(test != FT8_TEST_IDENTITY) {
+            assert(capture.packets[1].command == FT8_DEVINFO);
+            assert(capture.times[1] == 100);
+        }
+        for(size_t i = 0; i < capture.count; ++i)
+            if(capture.packets[i].command == FT8_RESET) {
+                /* No function request may precede re-enumeration after reset. */
+                assert(i + 1 < capture.count);
+                assert(capture.packets[i + 1].command == FT8_DEVINFO);
+            }
         for(size_t i = 0; i < capture.count; ++i)
             commands[capture.packets[i].command] = true;
         if(test == FT8_TEST_KILL) {
@@ -114,6 +124,21 @@ static void check_sequences(void) {
     assert(capture.packets[3].words[1] == 2);
     assert(capture.packets[4].words[1] == 3);
     transport.sources = 1;
+
+    memset(&capture, 0, sizeof(capture));
+    ft8_test_run(FT8_TEST_RESET_START, &transport);
+    {
+        unsigned resets = 0;
+        for(size_t i = 0; i < capture.count; ++i)
+            if(capture.packets[i].command == FT8_RESET) {
+                assert(capture.packets[i + 1].command == FT8_DEVINFO);
+                assert(capture.packets[i + 2].command == FT8_GETCOND);
+                assert(capture.packets[i + 3].command == FT8_READ);
+                ++resets;
+            }
+        assert(resets == 2);
+        assert(capture.packets[4].command == FT8_SETCOND);
+    }
 
     memset(&capture, 0, sizeof(capture));
     ft8_test_run(FT8_TEST_RAMPS_NEGATIVE, &transport);

@@ -129,6 +129,10 @@ ft8_result_t ft8_test_run(ft8_test_t test, const ft8_transport_t *transport) {
         send_observe(transport, &result, ft8_query_packet(FT8_RESET, 0));
         if(!wait_observe(transport, &result, 100, false))
             goto cleanup;
+        /* FT8 section 6.1.8 / MAPLE82E section 3.5: soft reset puts the
+           peripheral back in standby until Device_Request completes its AP.
+           Tremor test 2 confirmed silence without this request. */
+        send_observe(transport, &result, ft8_query_packet(FT8_DEVINFO, 0));
     }
 
     switch(test) {
@@ -143,19 +147,25 @@ ft8_result_t ft8_test_run(ft8_test_t test, const ft8_transport_t *transport) {
 
         case FT8_TEST_RESET_START:
             /* No media query or AST write before the first start. */
+            transport->stage(transport->context, "Reading reset defaults (before first start)");
             send_observe(transport, &result, ft8_query_packet(FT8_GETCOND, 0));
             send_observe(transport, &result, ft8_query_packet(FT8_READ, 0));
+            transport->stage(transport->context, "1/2: Start BEFORE media query (1.5s)");
             send_observe(transport, &result, ft8_effect_packet(effect));
-            if(!wait_observe(transport, &result, 500, true)) goto cleanup;
+            if(!wait_observe(transport, &result, 1500, true)) goto cleanup;
+            transport->stage(transport->context, "Reset active effect; read defaults again");
             send_observe(transport, &result, ft8_query_packet(FT8_RESET, 0));
             if(!wait_observe(transport, &result, 100, false)) goto cleanup;
             send_observe(transport, &result, ft8_query_packet(FT8_DEVINFO, 0));
-            send_observe(transport, &result, ft8_query_packet(FT8_ALLINFO, 0));
-            send_observe(transport, &result, ft8_query_packet(FT8_MEDIA, 1));
+            /* Read immediately after reset/re-enumeration, before a new start
+               can replace the defaults that we are trying to measure. */
             send_observe(transport, &result, ft8_query_packet(FT8_GETCOND, 0));
             send_observe(transport, &result, ft8_query_packet(FT8_READ, 0));
+            send_observe(transport, &result, ft8_query_packet(FT8_ALLINFO, 0));
+            send_observe(transport, &result, ft8_query_packet(FT8_MEDIA, 1));
+            transport->stage(transport->context, "2/2: Start AFTER media query (1.5s)");
             send_observe(transport, &result, ft8_effect_packet(effect));
-            if(!wait_observe(transport, &result, 500, true)) goto cleanup;
+            if(!wait_observe(transport, &result, 1500, true)) goto cleanup;
             break;
 
         case FT8_TEST_LEVELS_POSITIVE:
