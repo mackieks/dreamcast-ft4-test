@@ -1,4 +1,4 @@
-name: Dreamcast FT4 and FT8 packet tests
+name: Dreamcast FT0, FT4 and FT8 tests
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - '*.c'
       - '*.h'
       - 'ft8/**'
+      - 'ft0/**'
       - 'Makefile'
       - 'README.txt'
       - '.github/workflows/github-actions.yml'
@@ -26,6 +27,8 @@ jobs:
           /tmp/test-ft4-packets
           cc -std=c11 -Wall -Wextra -Werror -pedantic ft8/ft8_tests.c ft8/editor.c ft8/test_packets.c -o /tmp/test-ft8-packets
           /tmp/test-ft8-packets
+          cc -std=c11 -Wall -Wextra -Werror -pedantic ft0/history.c ft0/test_history.c -lm -o /tmp/test-ft0-history
+          /tmp/test-ft0-history
 
   dreamcast:
     name: Build ELF and bootable CDI
@@ -44,7 +47,7 @@ jobs:
         run: |
           source /opt/toolchains/dc/kos/environ.sh
           make -j2
-          mkdir -p artifact artifact-ft8
+          mkdir -p artifact artifact-ft8 artifact-ft0
           /usr/local/bin/mkdcdisc -e ft4-test.elf -o artifact/ft4-test.cdi -n "FT4 packet tests"
           cp ft4-test.elf ft4-test.bin README.txt artifact/
           printf '%s\n' "$GITHUB_SHA" > artifact/BUILD_COMMIT.txt
@@ -56,6 +59,12 @@ jobs:
           git -C "$KOS_BASE" rev-parse HEAD > artifact-ft8/KOS_COMMIT.txt
           sh-elf-gcc --version > artifact-ft8/TOOLCHAIN.txt
           sha256sum artifact-ft8/ft8-test.* > artifact-ft8/SHA256SUMS.txt
+          /usr/local/bin/mkdcdisc -e ft0-test.elf -o artifact-ft0/ft0-test.cdi -n "FT0 stick viewer"
+          cp ft0-test.elf ft0-test.bin ft0/README.txt artifact-ft0/
+          printf '%s\n' "$GITHUB_SHA" > artifact-ft0/BUILD_COMMIT.txt
+          git -C "$KOS_BASE" rev-parse HEAD > artifact-ft0/KOS_COMMIT.txt
+          sh-elf-gcc --version > artifact-ft0/TOOLCHAIN.txt
+          sha256sum artifact-ft0/ft0-test.* > artifact-ft0/SHA256SUMS.txt
       - uses: actions/upload-artifact@v7
         with:
           name: dreamcast-ft4-test
@@ -65,4 +74,9 @@ jobs:
         with:
           name: dreamcast-ft8-test
           path: artifact-ft8/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dreamcast-ft0-test
+          path: artifact-ft0/
           if-no-files-found: error
