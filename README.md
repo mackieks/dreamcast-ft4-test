@@ -1,4 +1,19 @@
-# Dreamcast FT4 microphone packet tests
+# Dreamcast FT0, FT4 and FT8 tests
+
+## FT0 joystick viewer
+
+The new, separate `ft0-test` app opens directly to a live stick plot: raw hex
+X/Y, a white 2x2 live dot, 512 FIFO motion samples, and persistent min/max.
+Trail hue varies continuously from green through yellow to red with the
+distance between successive positions. Holding still preserves the trail.
+**X** clears history and ranges; **Start** exits.
+
+The 448x448 plot fits the standard 640x480 output alongside the readouts.
+See [ft0/README.txt](ft0/README.txt) for coordinate mapping, color scale and
+reconnection behavior. Download the `dreamcast-ft0-test` artifact from a
+successful **Dreamcast FT0, FT4 and FT8 tests** Actions run for CDI, ELF and BIN.
+
+## FT4 microphone packet tests
 
 Minimal offline Maple command exerciser for a stock controller and microphone,
 or MaplePad. Capture requests and replies with a logic analyzer.
